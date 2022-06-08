@@ -1,6 +1,20 @@
 use reqwest;
 use serde_json::json;
+use serde::{Deserialize};
 use std::env;
+
+#[derive(Deserialize, Debug)]
+struct Choice {
+    text: String
+}
+
+#[derive(Deserialize, Debug)]
+struct Response {
+    id: String,
+    created: i32,
+    model: String,
+    choices: Vec<Choice>
+}
 
 #[tokio::main]
 async fn main() {
@@ -14,8 +28,8 @@ async fn main() {
     let body = json!({
         "model": "text-davinci-002",
         "prompt": "Generate three jeopardy questions about Ronald Regan",
-        "temperature": 0.7,
-        "max_tokens": 256
+        "temperature": f32::from(0.7),
+        "max_tokens": i32::from(256)
     });
 
     let request = client
@@ -25,7 +39,7 @@ async fn main() {
         .body(body.to_string());
 
     let response = match request.send().await {
-        Ok(resp) => resp.text().await,
+        Ok(resp) => resp.json::<Response>().await.unwrap(),
         Err(err) => {
             println!("Request failed: {}", err.to_string());
             return;
