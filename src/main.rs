@@ -1,11 +1,29 @@
+use clap::Parser;
 use reqwest;
+use serde::Deserialize;
 use serde_json::json;
-use serde::{Deserialize};
-use std::env;
+use std::fmt;
+use std::{
+    fs,
+    path::{self},
+};
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    output: path::PathBuf,
+
+    #[clap(short, long)]
+    api_key: String,
+
+    #[clap(short, long)]
+    prompt: Option<String>,
+}
 
 #[derive(Deserialize, Debug)]
 struct Choice {
-    text: String
+    text: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -13,21 +31,38 @@ struct Response {
     id: String,
     created: i32,
     model: String,
-    choices: Vec<Choice>
+    choices: Vec<Choice>,
+}
+
+impl fmt::Display for Response {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} {} {} {:?}",
+            self.id,
+            self.created,
+            self.model,
+            self.choices.iter().map(|c| c.text.to_string())
+        )
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    let api_key = env::var("OPEN_AI_API_KEY").expect("$OPEN_AI_API_KEY is not set");
+    // format cli args
+    let args = Args::parse();
 
     let client = reqwest::Client::new();
 
     let endpoint = String::from("https://api.openai.com/v1/completions");
-    let token = format!("Bearer {}", api_key);
+    let token = format!("Bearer {}", args.api_key);
+    let prompt = args.prompt.unwrap_or(String::from(
+        "Generate three jeopardy questions about Africa",
+    ));
 
     let body = json!({
         "model": "text-davinci-002",
-        "prompt": "Generate three jeopardy questions about Ronald Regan",
+        "prompt": prompt,
         "temperature": f32::from(0.7),
         "max_tokens": i32::from(256)
     });
@@ -46,5 +81,12 @@ async fn main() {
         }
     };
 
-    println!("{:?}", response);
+    // write to output file
+    match fs::write(&args.output, response.to_string()) {
+        Ok(_) => println!("Success."),
+        Err(e) => println!(
+            "Encountered the following error when writing to output {}",
+            e
+        ),
+    };
 }
